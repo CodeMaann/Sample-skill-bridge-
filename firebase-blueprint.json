@@ -1,0 +1,155 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the SkillBridge application, managing their profile and associated roadmaps. This entity does not store authentication credentials, relying on an external authentication system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address, used for identification and communication.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "The assigned role of the user within the application (e.g., 'admin', 'user')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "role",
+        "createdAt"
+      ]
+    },
+    "Roadmap": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Roadmap",
+      "type": "object",
+      "description": "Represents a career path roadmap generated for a specific user, outlining steps to achieve a target role.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Roadmap entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns this roadmap. (Relationship: User 1:N Roadmap)"
+        },
+        "targetRole": {
+          "type": "string",
+          "description": "The specific tech role the user aims to achieve with this roadmap (e.g., 'MLOps Specialist', 'Senior React Developer')."
+        },
+        "roadmapData": {
+          "type": "string",
+          "description": "The structured JSON data of the generated roadmap content, containing phases, skills, courses, and projects, as returned by the LLM."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the roadmap was generated and saved.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "targetRole",
+        "roadmapData",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores individual user profiles. Access is restricted to the user whose ID matches the {userId} wildcard. Includes denormalized 'role' for authorization clarity.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, corresponding to Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/roadmaps/{roadmapId}",
+        "definition": {
+          "entityName": "Roadmap",
+          "schema": {
+            "$ref": "#/backend/entities/Roadmap"
+          },
+          "description": "Stores career roadmaps generated for specific users. Each roadmap document includes 'userId' as a denormalized field for robust authorization and queryability. Access is restricted to the owner matching {userId}.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns this roadmap."
+            },
+            {
+              "name": "roadmapId",
+              "description": "The unique identifier for a specific career roadmap."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/analyses/{analysisId}",
+        "definition": {
+          "entityName": "Analysis",
+          "schema": {
+            "$ref": "#/backend/entities/Analysis"
+          },
+          "description": "Stores skill-gap analysis requests and their corresponding results for individual users. Each analysis document includes 'userId' as a denormalized field for authorization independence and queryability. Access is restricted to the owner matching {userId}.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who initiated this analysis."
+            },
+            {
+              "name": "analysisId",
+              "description": "The unique identifier for a specific skill-gap analysis."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "adminRole",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Represents an administrative role. The mere existence of a document at this path for a given userId indicates that user is an administrator. This is used for Database Access Control (DBAC) and security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of a user who holds the admin role."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure for SkillBridge prioritizes Authorization Independence and Structural Segregation to ensure robust, debuggable, and scalable security rules. User-specific data, such as profiles, roadmaps, and analysis requests, are organized using hierarchical paths under a top-level `/users/{userId}` collection. This path-based ownership is fundamental to achieving Authorization Independence (Mandate A), as the `userId` in the path directly corresponds to `request.auth.uid`. This eliminates the need for `get()` calls in security rules to ascertain ownership, allowing for atomic operations and significantly simplifying rule logic. Each document within these user-specific subcollections (e.g., `/users/{userId}/roadmaps/{roadmapId}`) will also contain a `userId` field, which serves as a denormalized reference to the owner. While the path primarily enforces authorization, this denormalization within the document itself supports data integrity, queryability, and provides an additional layer of clarity for ownership, adhering to Mandate A where attributes for access are replicated where needed.\n\nStructural Segregation (Mandate B) is applied by ensuring that all documents within a given collection share the same security posture. For instance, `/users/{userId}/roadmaps` will only contain roadmaps owned by `userId`, preventing a mix of public and private data that would complicate security rules. Similarly, `/users/{userId}/analyses` will house only the analysis requests and results pertinent to that specific user. This homogeneity greatly simplifies the `list` operation Query Ability Profile (QAP), as rules can simply enforce that the `userId` in the path matches `request.auth.uid` for any read or write access, making `list` operations inherently secure and efficient for the owner. For global roles, an existence-based DBAC model is used with the `/roles_admin/{userId}` collection. The mere existence of a document at `/roles_admin/$(request.auth.uid)` grants admin privileges, providing an independent and highly performant check without requiring complex document reads. This adherence to path-based ownership and dedicated role collections ensures that security rules are straightforward, explicit, and easily debuggable."
+  }
+}

@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * SkillBridge Security Rules
+     * 
+     * Philosophy:
+     * This ruleset implements a strict User-Ownership model combined with Role-Based Access Control (RBAC). 
+     * Security is achieved through path-based authorization and structural segregation. 
+     * 
+     * Data Structure:
+     * - /users/{userId}: Primary user profile.
+     * - /users/{userId}/roadmaps/{roadmapId}: Private user-specific career roadmaps.
+     * - /users/{userId}/analyses/{analysisId}: Private skill-gap analysis results.
+     * - /roles_admin/{userId}: Administrative role registry.
+     * 
+     * Key Security Decisions:
+     * 1. Path-Based Ownership: Authorization for user data is derived directly from the document path 
+     *    matching the 'request.auth.uid', eliminating the need for expensive cross-document lookups.
+     * 2. Administrative Override: Users with an entry in '/roles_admin' are granted global read access 
+     *    to support support and auditing, but write access remains restricted to owners.
+     * 3. Relational Integrity: On creation, documents must include a 'userId' field that matches 
+     *    the authenticated user, ensuring data remains linked to its creator.
+     * 4. Immutable Identity: Relational fields (like 'userId' or 'id') are made immutable 
+     *    after creation to prevent data hijacking or orphaned records.
+     */
+
+    // --- Helper Functions ---
+
+    /** Checks if the request is from an authenticated user. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** Checks if the user's UID matches the provided ID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** Checks if the user exists and matches the authenticated UID. Used for updates/deletes. */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    /** 
+     * Checks if the authenticated user has an administrative role.
+     * Uses a high-performance existence check in the roles_admin collection.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for user profiles. Users can manage their own profile; admins can view all.
+     * @path /users/{userId}
+     * @allow (get) If user is the owner or an admin.
+     * @deny (update) If the user tries to change their 'id' or 'email'.
+     * @principle Restricts access to a user's own data tree and enforces identity immutability.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id && request.resource.data.email == resource.data.email;
+      allow delete: if isAdmin();
+
+      /**
+       * @description Rules for career roadmaps. Roadmaps are private to the creator.
+       * @path /users/{userId}/roadmaps/{roadmapId}
+       * @allow (create) If authenticated user matches the path userId and provides a matching userId field.
+       * @deny (list) If a user attempts to view roadmaps belonging to another UID.
+       * @principle Validates relational integrity between the document path and internal fields.
+       */
+      match /roadmaps/{roadmapId} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+      }
+
+      /**
+       * @description Rules for skill-gap analyses. Restricted to owner access.
+       * @path /users/{userId}/analyses/{analysisId}
+       * @allow (get) If the user owns the parent user document.
+       * @deny (create) If the userId in the data does not match the authenticated user.
+       * @principle Uses structural segregation to ensure private data remains isolated.
+       */
+      match /analyses/{analysisId} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+      }
+    }
+
+    /**
+     * @description Registry for administrative users.
+     * @path /roles_admin/{userId}
+     * @allow (get) If the user is signed in (to allow the isAdmin check to function).
+     * @deny (write) Any client-side modification; admin roles must be managed via backend/console.
+     * @principle Database Access Control (DBAC) via existence checks.
+     */
+    match /roles_admin/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

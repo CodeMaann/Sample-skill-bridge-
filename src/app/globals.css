@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 270 47% 7%;
+    --foreground: 0 0% 98%;
+    --card: 270 47% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 270 47% 5%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 270 70% 70%;
+    --primary-foreground: 270 47% 7%;
+    --secondary: 240 40% 75%;
+    --secondary-foreground: 270 47% 7%;
+    --muted: 270 20% 20%;
+    --muted-foreground: 270 10% 70%;
+    --accent: 240 60% 75%;
+    --accent-foreground: 270 47% 7%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 270 20% 30%;
+    --input: 270 20% 20%;
+    --ring: 270 70% 70%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased selection:bg-primary/30;
+    overflow-x: hidden;
+  }
+}
+
+.glass-panel {
+  @apply backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl;
+}
+
+.silver-border {
+  border: 1px solid rgba(192, 192, 192, 0.2);
+}
+
+.purple-glow {
+  text-shadow: 0 0 20px rgba(179, 125, 232, 0.4);
+}
+
+.computing-gradient {
+  background: linear-gradient(90deg, transparent, hsl(var(--primary)), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}

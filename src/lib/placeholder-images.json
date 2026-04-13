@@ -1,0 +1,22 @@
+{
+  "placeholderImages": [
+    {
+      "id": "frame-start",
+      "description": "Initial career workspace view",
+      "imageUrl": "https://picsum.photos/seed/skillbridge-1/1920/1080",
+      "imageHint": "career workspace"
+    },
+    {
+      "id": "frame-bridge",
+      "description": "Architectural bridge representing career transition",
+      "imageUrl": "https://picsum.photos/seed/skillbridge-bridge/1920/1080",
+      "imageHint": "futuristic bridge"
+    },
+    {
+      "id": "frame-staircase",
+      "description": "Ascending staircase representing professional growth",
+      "imageUrl": "https://picsum.photos/seed/skillbridge-stairs/1920/1080",
+      "imageHint": "ascending stairs"
+    }
+  ]
+}

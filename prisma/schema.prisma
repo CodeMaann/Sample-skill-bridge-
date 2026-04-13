@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  role      String    @default("user")
+  createdAt DateTime  @default(now())
+  roadmaps  Roadmap[]
+}
+
+model Roadmap {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentSkillset String
+  targetRole      String
+  roadmapData     Json
+  createdAt       DateTime @default(now())
+}
